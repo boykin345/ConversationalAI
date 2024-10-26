@@ -1,11 +1,17 @@
 import re
+import csv
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+
+# Download NLTK resources
+nltk.download('punkt')
+nltk.download('stopwords')
 
 class Chatbot:
-    def __init__(self):
+    def __init__(self, qa_file='COMP3074-CW1-Dataset.csv'):
         self.user_name = None
-        self.qa_dataset = {
-            "what are stocks and bonds": "Stocks represent ownership in a company, while bonds are loans made by an investor to a borrower."
-        }
+        self.qa_dataset = self.load_qa_dataset(qa_file)
         self.intents = {
             "greet": ["hi", "hello", "hey"],
             "name_query": ["what is my name"],
@@ -13,6 +19,18 @@ class Chatbot:
             "capability_query": ["what can you do"],
             "qa": list(self.qa_dataset.keys())
         }
+        self.stop_words = set(stopwords.words("english"))
+
+    def load_qa_dataset(self, qa_file):
+        """Loads the Q&A dataset from a CSV file."""
+        dataset = {}
+        with open(qa_file, newline='', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                question = row['Question'].lower()
+                answer = row['Answer']
+                dataset[question] = answer
+        return dataset
 
     def greet_user(self):
         if self.user_name:
@@ -22,18 +40,34 @@ class Chatbot:
     def handle_name(self, user_input):
         """Attempts to capture the user's name."""
         if not self.user_name:
-            # Assume the first word is the user's name
-            name_guess = user_input.strip().split()[0]
-            if name_guess.isalpha():
-                self.user_name = name_guess
+            # First, look for phrases like "name is," "I am," or "I'm" followed by a name
+            name_match = re.search(r"(?:name is|i am|i'm)\s+(\w+)", user_input, re.IGNORECASE)
+            
+            if name_match:
+                # Capture the name from the matched group
+                self.user_name = name_match.group(1)
                 return f"Nice to meet you, {self.user_name}!"
+            
+            # If no phrase is found, assume the entire input is the name if it's a single word
+            elif user_input.strip().isalpha():
+                self.user_name = user_input.strip()
+                return f"Nice to meet you, {self.user_name}!"
+            
             return "I didn't catch your name. Please tell me your name."
         return None
 
+
+
+    def preprocess_text(self, text):
+        """Tokenizes and removes stop words from text."""
+        tokens = word_tokenize(text.lower())
+        filtered_words = [word for word in tokens if word.isalnum() and word not in self.stop_words]
+        return ' '.join(filtered_words)
+
     def handle_intent(self, user_input):
         """Routes conversation based on detected intent."""
-        # Lowercase the user input for case-insensitive matching
-        user_input_lower = user_input.lower()
+        # Preprocess user input for better matching
+        user_input_lower = self.preprocess_text(user_input)
 
         # Detect greeting
         if any(greet in user_input_lower for greet in self.intents["greet"]):
