@@ -1,116 +1,232 @@
+import tkinter as tk
+from tkinter import ttk, scrolledtext
+from datetime import datetime
+import json
 import re
+import random
 import csv
-import nltk
-from nltk.corpus import stopwords
+import os
 from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from difflib import get_close_matches
+import nltk
 
-# Download NLTK resources
-nltk.download('punkt')
-nltk.download('stopwords')
+# Download required NLTK data
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
+try:
+    nltk.data.find('corpora/stopwords')
+except LookupError:
+    nltk.download('stopwords')
+
+class ChatbotGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Chatbot Assistant")
+        self.root.geometry("600x800")
+        
+        # Configure style
+        style = ttk.Style()
+        style.configure("Custom.TFrame", background="#f0f0f0")
+        
+        # Create main frame
+        self.main_frame = ttk.Frame(root, style="Custom.TFrame", padding="10")
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Create chat display
+        self.chat_display = scrolledtext.ScrolledText(
+            self.main_frame,
+            wrap=tk.WORD,
+            width=50,
+            height=30,
+            font=("Georgia", 12),
+            background="#ffffff",
+            foreground="#000000"
+        )
+        self.chat_display.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Create input frame
+        self.input_frame = ttk.Frame(self.main_frame)
+        self.input_frame.pack(fill=tk.X, pady=5)
+        
+        # Create input field
+        self.input_field = ttk.Entry(
+            self.input_frame,
+            font=("Georgia", 12)
+        )
+        self.input_field.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        
+        # Create send button
+        self.send_button = ttk.Button(
+            self.input_frame,
+            text="Send",
+            command=self.send_message
+        )
+        self.send_button.pack(side=tk.RIGHT)
+        
+        # Bind enter key to send message
+        self.input_field.bind("<Return>", lambda e: self.send_message())
+        
+        # Initialize chatbot backend
+        self.chatbot = Chatbot()
+        
+        # Display welcome message
+        self.display_message("Chatbot: " + self.chatbot.get_welcome_message())
+
+    def send_message(self):
+        message = self.input_field.get().strip()
+        if message:
+            # Display user message
+            self.display_message("You: " + message)
+            
+            # Get chatbot response
+            response = self.chatbot.handle_user_input(message)
+            
+            # Display chatbot response
+            self.display_message("Chatbot: " + response)
+            
+            # Clear input field
+            self.input_field.delete(0, tk.END)
+
+    def display_message(self, message):
+        self.chat_display.insert(tk.END, message + "\n\n")
+        self.chat_display.see(tk.END)
 
 class Chatbot:
-    def __init__(self, qa_file='COMP3074-CW1-Dataset.csv'):
+    def __init__(self):
         self.user_name = None
-        self.qa_dataset = self.load_qa_dataset(qa_file)
+        self.conversation_history = []
+        self.load_qa_dataset()
+        self.initialize_intents()
+
+    def load_qa_dataset(self):
+        """Load the QA dataset."""
+        self.qa_pairs = {}
+        try:
+            with open('COMP3074-CW1-Dataset.csv', 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    self.qa_pairs[row['Question'].lower()] = row['Answer']
+        except Exception as e:
+            print(f"Error loading QA dataset: {str(e)}")
+
+    def initialize_intents(self):
+        """Initialize basic intents and responses."""
         self.intents = {
-            "greet": ["hi", "hello", "hey"],
-            "name_query": ["what is my name"],
-            "small_talk": ["how are you"],
-            "capability_query": ["what can you do"],
-            "qa": list(self.qa_dataset.keys())
+            'greeting': [
+                'hi', 'hello', 'hey', 'good morning', 'good afternoon', 
+                'good evening', 'howdy'
+            ],
+            'farewell': [
+                'bye', 'goodbye', 'see you', 'farewell', 'quit', 'exit'
+            ],
+            'time_query': [
+                'what time is it', 'what is the time', 'current time', 
+                'tell me the time', "what's the time", 'time', 'current time'
+            ],
+            'date_query': [
+                'what date is it', 'what is the date', 'current date', 
+                'tell me the date', "what's today's date", 'today\'s date', 'date'
+            ],
+            'name_query': [
+                'what is my name', 'who am i', 'my name', 'my name is',
+            ]
         }
-        self.stop_words = set(stopwords.words("english"))
 
-    def load_qa_dataset(self, qa_file):
-        """Loads the Q&A dataset from a CSV file."""
-        dataset = {}
-        with open(qa_file, newline='', encoding='utf-8') as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                question = row['Question'].lower()
-                answer = row['Answer']
-                dataset[question] = answer
-        return dataset
+    def get_welcome_message(self):
+        """Return the welcome message."""
+        return "Hello! I'm your ChatBot. What's your name?"
 
-    def greet_user(self):
-        if self.user_name:
-            return f"Hello {self.user_name}, how can I help you today?"
-        return "Hello, welcome! What is your name?"
-
-    def handle_name(self, user_input):
-        """Attempts to capture the user's name."""
-        if not self.user_name:
-            # First, look for phrases like "name is," "I am," or "I'm" followed by a name
-            name_match = re.search(r"(?:name is|i am|i'm)\s+(\w+)", user_input, re.IGNORECASE)
-            
-            if name_match:
-                # Capture the name from the matched group
-                self.user_name = name_match.group(1)
-                return f"Nice to meet you, {self.user_name}!"
-            
-            # If no phrase is found, assume the entire input is the name if it's a single word
-            elif user_input.strip().isalpha():
-                self.user_name = user_input.strip()
-                return f"Nice to meet you, {self.user_name}!"
-            
-            return "I didn't catch your name. Please tell me your name."
+    def extract_name(self, user_input):
+        """Extract name from user input."""
+        patterns = [
+            r"(?:my name is|i am|i'm|call me) ([A-Za-z\s]+)",
+            r"([A-Za-z\s]+) is my name",
+            r"^([A-Za-z]+)$"
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, user_input, re.IGNORECASE)
+            if match:
+                name = match.group(1).strip()
+                return name.title()
         return None
 
+    def handle_time_query(self):
+        """Handle time-related queries."""
+        current_time = datetime.now().strftime("%I:%M %p")
+        return f"The current time is {current_time}"
 
+    def handle_date_query(self):
+        """Handle date-related queries."""
+        current_date = datetime.now().strftime("%B %d, %Y")
+        return f"Today's date is {current_date}"
 
-    def preprocess_text(self, text):
-        """Tokenizes and removes stop words from text."""
-        tokens = word_tokenize(text.lower())
-        filtered_words = [word for word in tokens if word.isalnum() and word not in self.stop_words]
-        return ' '.join(filtered_words)
+    def find_best_match(self, user_input):
+        """Find the best matching question in the dataset."""
+        if not self.qa_pairs:
+            return None
+            
+        user_input = user_input.lower()
+        matches = get_close_matches(user_input, self.qa_pairs.keys(), n=1, cutoff=0.6)
+        return matches[0] if matches else None
 
-    def handle_intent(self, user_input):
-        """Routes conversation based on detected intent."""
-        # Preprocess user input for better matching
-        user_input_lower = self.preprocess_text(user_input)
+    def handle_user_input(self, user_input):
+        """Process user input and generate appropriate response."""
+        try:
+            # Handle empty input
+            if not user_input.strip():
+                return "Please say something!"
 
-        # Detect greeting
-        if any(greet in user_input_lower for greet in self.intents["greet"]):
-            return self.greet_user()
-        
-        # Detect name query
-        elif any(name_query in user_input_lower for name_query in self.intents["name_query"]):
-            if self.user_name:
-                return f"Your name is {self.user_name}."
-            return "I don't know your name yet. Please tell me your name."
+            # Handle name capture if no name is set
+            if not self.user_name:
+                extracted_name = self.extract_name(user_input)
+                if extracted_name:
+                    self.user_name = extracted_name
+                    return f"Nice to meet you, {self.user_name}! How can I help you today?"
+                else:
+                    return "I didn't quite catch your name. Could you tell me again?"
 
-        # Detect small talk
-        elif any(talk in user_input_lower for talk in self.intents["small_talk"]):
-            return "I'm just a chatbot, but thank you for asking!"
+            # Convert input to lowercase for intent matching
+            user_input_lower = user_input.lower()
 
-        # Detect capability query
-        elif any(capability in user_input_lower for capability in self.intents["capability_query"]):
-            return "I can help you book flights, answer questions, and chat with you!"
+            # Check for time query
+            if any(phrase in user_input_lower for phrase in self.intents['time_query']):
+                return self.handle_time_query()
 
-        # Detect QA queries
-        for question in self.intents["qa"]:
-            if question in user_input_lower:
-                return self.qa_dataset[question]
+            # Check for date query
+            if any(phrase in user_input_lower for phrase in self.intents['date_query']):
+                return self.handle_date_query()
 
-        # If no intent is detected, ask for clarification
-        return "I'm sorry, I didn't understand that. Could you rephrase?"
+            # Check for name query
+            if any(phrase in user_input_lower for phrase in self.intents['name_query']):
+                return f"Your name is {self.user_name}!"
 
-    def chat(self, user_input):
-        """Main chat function that processes user input."""
-        if not self.user_name:
-            name_response = self.handle_name(user_input)
-            if name_response:
-                return name_response
-        response = self.handle_intent(user_input)
-        return response
+            # Check for greetings
+            if any(phrase in user_input_lower for phrase in self.intents['greeting']):
+                return f"Hello again, {self.user_name}! How can I help you?"
 
+            # Check for farewell
+            if any(phrase in user_input_lower for phrase in self.intents['farewell']):
+                return f"Goodbye, {self.user_name}! Have a great day!"
 
-# Example of running the chatbot
-chatbot = Chatbot()
-print(chatbot.greet_user())
+            # Try to find matching question
+            best_match = self.find_best_match(user_input)
+            if best_match:
+                return self.qa_pairs[best_match]
 
-# Simulating conversation flow
-while True:
-    user_input = input()  # User's input during conversation
-    response = chatbot.chat(user_input)
-    print(response)
+            return "I'm not sure how to answer that. Could you rephrase your question?"
+
+        except Exception as e:
+            print(f"Error processing input: {str(e)}")
+            return "I encountered an error. Please try again."
+
+def main():
+    root = tk.Tk()
+    app = ChatbotGUI(root)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
