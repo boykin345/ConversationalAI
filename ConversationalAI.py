@@ -52,7 +52,7 @@ class Chatbot:
         }
 
         self.capabilities_response = [
-            "I can help with answering questions, providing the current time and date, checking the weather for any city, and remembering your name."
+            "I can help with answering questions from QA dataset, providing the current time and date, checking the weather for any city, and remembering your name."
         ]
 
     def get_coordinates(self, city):
