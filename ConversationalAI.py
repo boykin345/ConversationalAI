@@ -33,15 +33,37 @@ class Chatbot:
         self.conversation_history = []
         self.load_qa_dataset()
         self.initialize_intents()
-        self.vectorizer = TfidfVectorizer(
+        
+        # Separate vectorizers for intents and QA
+        self.intent_vectorizer = TfidfVectorizer(
             ngram_range=(1, 3),
             analyzer='char_wb',
             max_features=5000,
             lowercase=True,
             strip_accents='unicode'
         )
+        
+        # Specific vectorizer for QA matching
+        self.qa_vectorizer = TfidfVectorizer(
+            ngram_range=(1, 2),
+            analyzer='word',
+            max_features=10000,
+            lowercase=True,
+            stop_words='english'
+        )
+        
         self.intent_vectors = None
         self.vectorize_intents()
+        self.vectorize_qa()
+
+    def vectorize_qa(self):
+        """Create TF-IDF vectors for QA dataset."""
+        if self.qa_pairs:
+            self.questions = list(self.qa_pairs.keys())
+            try:
+                self.qa_vectors = self.qa_vectorizer.fit_transform(self.questions)
+            except Exception as e:
+                print(f"Error in QA vectorization: {str(e)}")
 
     def get_welcome_message(self):
         """Return the welcome message."""
@@ -71,7 +93,7 @@ class Chatbot:
                 'see you later', 'have a good day'
             ],
             'capabilities': [
-                'what can you do', 'help', 'what are your features', 
+                'what can you do', 'help', 
                 'what do you do', 'show me what you can do'
             ],
             'time_query': [
@@ -106,7 +128,7 @@ class Chatbot:
             all_phrases.append(intent_doc)
             self.intent_mapping.append(intent)
         
-        self.intent_vectors = self.vectorizer.fit_transform(all_phrases)
+        self.intent_vectors = self.intent_vectorizer.fit_transform(all_phrases)
 
     def get_coordinates(self, city):
         """Get coordinates for a given city using Open-Meteo Geocoding API."""
@@ -193,12 +215,12 @@ class Chatbot:
         current_date = datetime.now().strftime("%B %d, %Y")
         return f"Today's date is {current_date}"
 
-    def get_intent(self, user_input, threshold=0.15):
+    def get_intent(self, user_input, threshold=0.75):
         """Determine intent using similarity matching."""
         user_input = user_input.lower().strip()
         
         try:
-            user_vector = self.vectorizer.transform([user_input])
+            user_vector = self.intent_vectorizer.transform([user_input])
             similarities = cosine_similarity(user_vector, self.intent_vectors)[0]
             
             best_match_index = np.argmax(similarities)
@@ -206,7 +228,7 @@ class Chatbot:
             
             if best_match_score >= threshold:
                 return self.intent_mapping[best_match_index], best_match_score
-            
+                
         except Exception as e:
             print(f"Error in intent matching: {str(e)}")
         
@@ -216,22 +238,20 @@ class Chatbot:
         """Find best matching question in QA dataset using similarity."""
         if not self.qa_pairs:
             return None
-            
+                
         try:
-            questions = list(self.qa_pairs.keys())
-            question_vectors = self.vectorizer.transform(questions)
-            input_vector = self.vectorizer.transform([user_input])
+            input_vector = self.qa_vectorizer.transform([user_input])
             
-            similarities = cosine_similarity(input_vector, question_vectors)[0]
+            similarities = cosine_similarity(input_vector, self.qa_vectors)[0]
             best_match_index = np.argmax(similarities)
             best_match_score = similarities[best_match_index]
             
             if best_match_score >= 0.3:
-                return questions[best_match_index]
-                
+                return self.questions[best_match_index]
+                    
         except Exception as e:
             print(f"Error in QA matching: {str(e)}")
-            
+                
         return None
 
     def handle_user_input(self, user_input):
@@ -245,8 +265,8 @@ class Chatbot:
                 return "I didn't quite catch your name. Could you tell me again?"
 
         intent, score = self.get_intent(user_input)
-        
-        if intent:
+
+        if intent and score >= 0.5:
             if intent == 'greeting':
                 return f"Hello {self.user_name}! How can I help you today?"
             elif intent == 'farewell':
@@ -262,12 +282,14 @@ class Chatbot:
             elif intent == 'weather_query':
                 location = self.extract_location(user_input)
                 return self.get_weather(location)
+        else:
+            # Proceed to QA matching if intent score is low
+            best_qa_match = self.find_best_qa_match(user_input)
+            if best_qa_match:
+                return self.qa_pairs[best_qa_match]
 
-        best_qa_match = self.find_best_qa_match(user_input)
-        if best_qa_match:
-            return self.qa_pairs[best_qa_match]
+            return "I'm not sure how to answer that. Could you rephrase your question?"
 
-        return "I'm not sure how to answer that. Could you rephrase your question?"
 
 def main():
     chatbot = Chatbot()
