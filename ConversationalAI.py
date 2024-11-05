@@ -86,11 +86,11 @@ class Chatbot:
         self.intents = {
             'greeting': [
                 'hi', 'hello', 'hey', 'good morning', 'good afternoon', 
-                'good evening', 'howdy', 'hi there', 'greetings'
+                'good evening', 'howdy', 'hi there', 'greetings', 'what\'s up'
             ],
             'farewell': [
-                'bye', 'goodbye', 'see you', 'farewell', 'quit', 'exit',
-                'see you later', 'have a good day'
+                'bye', 'goodbye!', 'see you', 'farewell', 'quit', 'exit',
+                'see you later', 'have a good day', 'take care', 'bye bye'
             ],
             'capabilities': [
                 'what can you do', 'help', 
@@ -215,7 +215,7 @@ class Chatbot:
         current_date = datetime.now().strftime("%B %d, %Y")
         return f"Today's date is {current_date}"
 
-    def get_intent(self, user_input, threshold=0.75):
+    def get_intent(self, user_input, threshold=0.65):
         """Determine intent using similarity matching."""
         user_input = user_input.lower().strip()
         
@@ -264,9 +264,19 @@ class Chatbot:
             else:
                 return "I didn't quite catch your name. Could you tell me again?"
 
+        # Check if input is a question
+        is_question = user_input.strip().endswith('?') or user_input.strip().lower().startswith(('what', 'how', 'why', 'where', 'when', 'who'))
+
+        if is_question:
+            # Try to find a QA match first
+            best_qa_match = self.find_best_qa_match(user_input)
+            if best_qa_match:
+                return self.qa_pairs[best_qa_match]
+
+        # Proceed with intent recognition
         intent, score = self.get_intent(user_input)
 
-        if intent and score >= 0.5:
+        if intent and score >= 0.7:
             if intent == 'greeting':
                 return f"Hello {self.user_name}! How can I help you today?"
             elif intent == 'farewell':
@@ -274,7 +284,12 @@ class Chatbot:
             elif intent == 'capabilities':
                 return self.capabilities_response[0]
             elif intent == 'time_query':
-                return self.handle_time_query()
+                # Handle time in a specific location
+                location = self.extract_time_location(user_input)
+                if location:
+                    return self.get_time_in_location(location)
+                else:
+                    return self.handle_time_query()
             elif intent == 'date_query':
                 return self.handle_date_query()
             elif intent == 'name_query':
@@ -282,8 +297,10 @@ class Chatbot:
             elif intent == 'weather_query':
                 location = self.extract_location(user_input)
                 return self.get_weather(location)
+            elif intent == 'small_talk':
+                return random.choice(self.small_talk_responses)
         else:
-            # Proceed to QA matching if intent score is low
+            # Try QA matching if intent confidence is low
             best_qa_match = self.find_best_qa_match(user_input)
             if best_qa_match:
                 return self.qa_pairs[best_qa_match]
