@@ -9,6 +9,9 @@ from difflib import get_close_matches
 import nltk
 import requests
 import json
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 # Download required NLTK data
 try:
@@ -19,6 +22,10 @@ try:
     nltk.data.find('corpora/stopwords')
 except LookupError:
     nltk.download('stopwords')
+try:
+    nltk.data.find('corpora/words')
+except LookupError:
+    nltk.download('words')
 
 class Chatbot:
     def __init__(self):
@@ -26,6 +33,19 @@ class Chatbot:
         self.conversation_history = []
         self.load_qa_dataset()
         self.initialize_intents()
+        self.vectorizer = TfidfVectorizer(
+            ngram_range=(1, 3),
+            analyzer='char_wb',
+            max_features=5000,
+            lowercase=True,
+            strip_accents='unicode'
+        )
+        self.intent_vectors = None
+        self.vectorize_intents()
+
+    def get_welcome_message(self):
+        """Return the welcome message."""
+        return "Hello! I'm your ChatBot. What's your name?"
 
     def load_qa_dataset(self):
         """Load the QA dataset."""
@@ -40,20 +60,53 @@ class Chatbot:
             self.qa_pairs = {}
 
     def initialize_intents(self):
-        """Initialize basic intents and responses."""
+        """Initialize intents with example phrases."""
         self.intents = {
-            'greeting': ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening', 'howdy'],
-            'farewell': ['bye', 'goodbye', 'see you', 'farewell', 'quit', 'exit'],
-            'capabilities': ['what can you do', 'help', 'what are your features', 'what do you do'],
-            'time_query': ['what time is it', 'what is the time', 'current time', 'time'],
-            'date_query': ['what date is it', 'what is the date', 'current date', 'date'],
-            'name_query': ['what is my name', 'who am i', 'my name', 'my name is'],
-            'weather_query': ['what is the weather', 'weather', 'temperature', 'how\'s the weather']
+            'greeting': [
+                'hi', 'hello', 'hey', 'good morning', 'good afternoon', 
+                'good evening', 'howdy', 'hi there', 'greetings'
+            ],
+            'farewell': [
+                'bye', 'goodbye', 'see you', 'farewell', 'quit', 'exit',
+                'see you later', 'have a good day'
+            ],
+            'capabilities': [
+                'what can you do', 'help', 'what are your features', 
+                'what do you do', 'show me what you can do'
+            ],
+            'time_query': [
+                'what time is it', 'what is the time', 'current time', 
+                'time', 'tell me the time'
+            ],
+            'date_query': [
+                'what date is it', 'what is the date', 'current date', 
+                'date', 'tell me the date', 'what day is it'
+            ],
+            'name_query': [
+                'what is my name', 'who am i', 'my name', 'tell me my name',
+                'do you know my name', 
+            ],
+            'weather_query': [
+                'what is the weather', 'weather', 'temperature', 
+                'how is the weather', 'what is the temperature'
+            ]
         }
 
         self.capabilities_response = [
             "I can help with answering questions from QA dataset, providing the current time and date, checking the weather for any city, and remembering your name."
         ]
+
+    def vectorize_intents(self):
+        """Create TF-IDF vectors for intent phrases."""
+        all_phrases = []
+        self.intent_mapping = []
+        
+        for intent, phrases in self.intents.items():
+            intent_doc = ' '.join(phrases)
+            all_phrases.append(intent_doc)
+            self.intent_mapping.append(intent)
+        
+        self.intent_vectors = self.vectorizer.fit_transform(all_phrases)
 
     def get_coordinates(self, city):
         """Get coordinates for a given city using Open-Meteo Geocoding API."""
@@ -67,7 +120,7 @@ class Chatbot:
                     result = data['results'][0]
                     return result['latitude'], result['longitude'], result['name'], result.get('country', '')
             return None
-        except Exception as e:
+        except Exception:
             return None
 
     def get_weather(self, location=None):
@@ -96,7 +149,7 @@ class Chatbot:
                     return f"The current temperature in {location_name} is {temperature}°C ({weather_description}) with a wind speed of {windspeed} km/h."
             
             return "I'm sorry, I couldn't fetch the weather information at the moment."
-        except Exception as e:
+        except Exception:
             return "Sorry, there was an error getting the weather data."
 
     def extract_location(self, user_input):
@@ -114,10 +167,6 @@ class Chatbot:
             if match:
                 return match.group(1).strip()
         return None
-
-    def get_welcome_message(self):
-        """Return the welcome message."""
-        return "Hello! I'm your ChatBot. What's your name?"
 
     def extract_name(self, user_input):
         """Extract name from user input."""
@@ -144,16 +193,49 @@ class Chatbot:
         current_date = datetime.now().strftime("%B %d, %Y")
         return f"Today's date is {current_date}"
 
-    def find_best_match(self, user_input):
-        """Find the best matching question in the dataset."""
+    def get_intent(self, user_input, threshold=0.15):
+        """Determine intent using similarity matching."""
+        user_input = user_input.lower().strip()
+        
+        try:
+            user_vector = self.vectorizer.transform([user_input])
+            similarities = cosine_similarity(user_vector, self.intent_vectors)[0]
+            
+            best_match_index = np.argmax(similarities)
+            best_match_score = similarities[best_match_index]
+            
+            if best_match_score >= threshold:
+                return self.intent_mapping[best_match_index], best_match_score
+            
+        except Exception as e:
+            print(f"Error in intent matching: {str(e)}")
+        
+        return None, 0.0
+
+    def find_best_qa_match(self, user_input):
+        """Find best matching question in QA dataset using similarity."""
         if not self.qa_pairs:
             return None
-        user_input = user_input.lower()
-        matches = get_close_matches(user_input, self.qa_pairs.keys(), n=1, cutoff=0.6)
-        return matches[0] if matches else None
+            
+        try:
+            questions = list(self.qa_pairs.keys())
+            question_vectors = self.vectorizer.transform(questions)
+            input_vector = self.vectorizer.transform([user_input])
+            
+            similarities = cosine_similarity(input_vector, question_vectors)[0]
+            best_match_index = np.argmax(similarities)
+            best_match_score = similarities[best_match_index]
+            
+            if best_match_score >= 0.3:
+                return questions[best_match_index]
+                
+        except Exception as e:
+            print(f"Error in QA matching: {str(e)}")
+            
+        return None
 
     def handle_user_input(self, user_input):
-        """Process user input and generate appropriate response."""
+        """Process user input and generate response."""
         if not self.user_name:
             extracted_name = self.extract_name(user_input)
             if extracted_name:
@@ -162,34 +244,28 @@ class Chatbot:
             else:
                 return "I didn't quite catch your name. Could you tell me again?"
 
-        user_input_lower = user_input.lower()
+        intent, score = self.get_intent(user_input)
+        
+        if intent:
+            if intent == 'greeting':
+                return f"Hello {self.user_name}! How can I help you today?"
+            elif intent == 'farewell':
+                return f"Goodbye {self.user_name}! Have a great day!"
+            elif intent == 'capabilities':
+                return self.capabilities_response[0]
+            elif intent == 'time_query':
+                return self.handle_time_query()
+            elif intent == 'date_query':
+                return self.handle_date_query()
+            elif intent == 'name_query':
+                return f"Your name is {self.user_name}!"
+            elif intent == 'weather_query':
+                location = self.extract_location(user_input)
+                return self.get_weather(location)
 
-        # Handle weather queries
-        if any(phrase in user_input_lower for phrase in self.intents['weather_query']):
-            location = self.extract_location(user_input)
-            return self.get_weather(location)
-
-        if any(phrase in user_input_lower for phrase in self.intents['capabilities']):
-            return random.choice(self.capabilities_response)
-
-        if any(phrase in user_input_lower for phrase in self.intents['time_query']):
-            return self.handle_time_query()
-
-        if any(phrase in user_input_lower for phrase in self.intents['date_query']):
-            return self.handle_date_query()
-
-        if any(phrase in user_input_lower for phrase in self.intents['name_query']):
-            return f"Your name is {self.user_name}!"
-
-        if any(phrase in user_input_lower for phrase in self.intents['greeting']):
-            return f"Hello again, {self.user_name}! How can I help you?"
-
-        if any(phrase in user_input_lower for phrase in self.intents['farewell']):
-            return f"Goodbye, {self.user_name}! Have a great day!"
-
-        best_match = self.find_best_match(user_input)
-        if best_match:
-            return self.qa_pairs[best_match]
+        best_qa_match = self.find_best_qa_match(user_input)
+        if best_qa_match:
+            return self.qa_pairs[best_qa_match]
 
         return "I'm not sure how to answer that. Could you rephrase your question?"
 
