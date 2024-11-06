@@ -243,7 +243,9 @@ class Chatbot:
         patterns = [
             r"(?:my name is|i am|i'm|call me) ([A-Za-z\s]+)",
             r"([A-Za-z\s]+) is my name",
-            r"^([A-Za-z]+)$"
+            r"^([A-Za-z]+)$",
+            r"name: ([A-Za-z\s]+)",
+            r"name is ([A-Za-z\s]+)",
         ]
 
         for pattern in patterns:
