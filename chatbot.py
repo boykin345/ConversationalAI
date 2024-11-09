@@ -26,6 +26,8 @@ class Chatbot:
             self.intent_vectorizer,
             self.capabilities_response,
             self.small_talk_responses,
+            self.greeting_responses,
+            self.farewell_responses
         ) = initialize_intents()
 
     def get_welcome_message(self):
@@ -43,7 +45,6 @@ class Chatbot:
         return f"Today's date is {current_date}"
 
     def find_best_qa_match(self, user_input):
-        """Find best matching question in QA dataset using similarity."""
         if not self.qa_pairs:
             return None
 
@@ -85,12 +86,15 @@ class Chatbot:
         intent, score = get_intent(user_input, self.intent_vectorizer, self.intent_vectors, self.intent_mapping)
 
         if intent and score >= 0.7:
+            # Handle recognized intents
             if intent == 'greeting':
-                return f"Hello {self.user_name}! How can I help you today?"
+                response = random.choice(self.greeting_responses)
+                return response.format(name=self.user_name)
             elif intent == 'farewell':
-                return f"Goodbye {self.user_name}! Have a great day!"
+                response = random.choice(self.farewell_responses)
+                return response.format(name=self.user_name)
             elif intent == 'capabilities':
-                return self.capabilities_response[0]
+                return random.choice(self.capabilities_response)
             elif intent == 'time_query':
                 # Handle time in a specific location
                 location = extract_time_location(user_input)

@@ -45,6 +45,22 @@ def initialize_intents():
         "I can help with answering questions from the QA dataset, providing the current time and date, checking the weather for any city, and remembering your name."
     ]
 
+    farewell_responses = [
+        "Goodbye! Have a great day!",
+        "See you later! Take care!",
+        "Farewell! Feel free to chat anytime.",
+        "Bye! Looking forward to our next conversation.",
+        "Goodbye! It was nice talking to you."
+    ]
+
+    greeting_responses = [
+        "Hello! How can I assist you today?",
+        "Hi there! What can I do for you?",
+        "Greetings! How may I help you?",
+        "Hey! Need any assistance?",
+        "Hello! Hope you're having a great day!"
+    ]
+
     small_talk_responses = [
         "I'm doing well, thank you!",
         "I'm fine, thanks for asking!",
@@ -70,7 +86,16 @@ def initialize_intents():
 
     intent_vectors = intent_vectorizer.fit_transform(all_phrases)
 
-    return intents, intent_mapping, intent_vectors, intent_vectorizer, capabilities_response, small_talk_responses
+    return (
+        intents,
+        intent_mapping,
+        intent_vectors,
+        intent_vectorizer,
+        capabilities_response,
+        small_talk_responses,
+        greeting_responses,
+        farewell_responses
+    )
 
 def get_intent(user_input, intent_vectorizer, intent_vectors, intent_mapping, threshold=0.4):
     """Determine intent using similarity matching."""
