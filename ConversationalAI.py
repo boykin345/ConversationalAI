@@ -265,7 +265,7 @@ class Chatbot:
         current_date = datetime.now().strftime("%B %d, %Y")
         return f"Today's date is {current_date}"
 
-    def get_intent(self, user_input, threshold=0.6):
+    def get_intent(self, user_input, threshold=0.4):
         """Determine intent using similarity matching."""
         user_input = user_input.lower().strip()
 
