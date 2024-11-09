@@ -1,0 +1,20 @@
+# Ignore Visual Studio Code settings directory
+.vscode/
+
+# Ignore Python bytecode files and cache directories
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore virtual environment directories
+env/
+venv/
+.venv/
+
+# Ignore MacOS and other system files
+.DS_Store
+Thumbs.db
+
+# Ignore other IDE directories (optional)
+.idea/
