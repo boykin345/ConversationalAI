@@ -1,3 +1,4 @@
+import random
 from chatbot import Chatbot
 
 def main():
@@ -7,7 +8,7 @@ def main():
     while True:
         user_input = input("You: ")
         if user_input.lower() in ['quit', 'exit']:
-            print("Chatbot: Goodbye!")
+            print(chatbot.farewell_responses[random.randint(0, len(chatbot.farewell_responses) - 1)])
             break
 
         response = chatbot.handle_user_input(user_input)
