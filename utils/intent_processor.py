@@ -54,11 +54,9 @@ def initialize_intents():
     ]
 
     greeting_responses = [
-        "Hello! How can I assist you today?",
-        "Hi there! What can I do for you?",
-        "Greetings! How may I help you?",
-        "Hey! Need any assistance?",
-        "Hello! Hope you're having a great day!"
+        "Good {time_of_day}, {name}! How can I assist you today?",
+        "Hello {name}, good {time_of_day}! What can I do for you?",
+        "Hi {name}, wishing you a pleasant {time_of_day}! How may I help you?",
     ]
 
     small_talk_responses = [

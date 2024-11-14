@@ -1,5 +1,6 @@
 import re
 import random
+import pytz
 import numpy as np
 from datetime import datetime
 from sklearn.metrics.pairwise import cosine_similarity
@@ -253,6 +254,24 @@ class Chatbot:
                 # For simplicity, assume same month and year
                 return f"{day}/11/2021"
         return None
+    
+    def get_current_time_in_nottingham(self):
+        """Get the current time in Nottingham."""
+        nottingham_timezone = pytz.timezone('Europe/London')
+        now_nottingham = datetime.now(nottingham_timezone)
+        return now_nottingham
+
+    def get_time_of_day(self, now):
+        """Determine the time of day based on the hour."""
+        hour = now.hour
+        if 5 <= hour < 12:
+            return 'morning'
+        elif 12 <= hour < 17:
+            return 'afternoon'
+        elif 17 <= hour < 22:
+            return 'evening'
+        else:
+            return 'night'
 
     def check_flight_availability(date):
         # Simulate checking flight availability
@@ -301,8 +320,10 @@ class Chatbot:
             if intent and score >= 0.7:
                 # Handle recognized intents
                 if intent == 'greeting':
+                    now_nottingam = self.get_current_time_in_nottingham()
+                    time_of_day = self.get_time_of_day(now_nottingam)
                     response = random.choice(self.greeting_responses)
-                    return response.format(name=self.user_name)
+                    return response.format(name=self.user_name, time_of_day=time_of_day)
                 elif intent == 'farewell':
                     response = random.choice(self.farewell_responses)
                     return response.format(name=self.user_name)
