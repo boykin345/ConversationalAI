@@ -42,7 +42,7 @@ def initialize_intents():
     }
 
     capabilities_response = [
-        "I can help with answering questions from the QA dataset, providing the current time and date, checking the weather for any city, and remembering your name."
+        "I can help with answering questions from the QA dataset, providing the current time and date, checking the weather for any city, and remembering your name. As well as booking a flight"
     ]
 
     farewell_responses = [

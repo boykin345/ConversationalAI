@@ -1,8 +1,10 @@
 import re
+import dateparser
+import csv
 import random
 import pytz
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from sklearn.metrics.pairwise import cosine_similarity
 from utils.data_loader import load_qa_dataset
 from utils.intent_processor import (
@@ -36,35 +38,52 @@ def extract_cities(user_input):
 
 def extract_travel_dates(user_input):
     """Extract travel dates and flexibility from user input."""
-    # Regex pattern to match dates in formats like DD/MM/YYYY or D/M/YYYY
-    date_pattern = r'(\d{1,2}/\d{1,2}/\d{4})'
-    dates = re.findall(date_pattern, user_input)
-    flexible = 'flexible' in user_input.lower()
-    if dates:
-        departure_date = dates[0]
-        return_date = dates[1] if len(dates) > 1 else None
-        return departure_date, return_date, flexible
-    else:
-        # Try to parse dates in formats like '10th to 19th'
-        date_range_pattern = r'(\d{1,2})(?:st|nd|rd|th)?\s*(?:to|-)\s*(\d{1,2})(?:st|nd|rd|th)?'
-        match = re.search(date_range_pattern, user_input.lower())
-        if match:
-            current_month = datetime.now().month
-            current_year = datetime.now().year
-            departure_day = match.group(1)
-            return_day = match.group(2)
-            departure_date = f"{departure_day}/{current_month}/{current_year}"
-            return_date = f"{return_day}/{current_month}/{current_year}"
-            return departure_date, return_date, flexible
-    return None, None, flexible
+    user_input = user_input.lower()
+    flexible = 'flexible' in user_input
 
-def check_flight_availability(date):
-    """Simulate checking flight availability."""
-    # For demonstration, let's assume '19/11/2021' is unavailable
-    unavailable_dates = ['19/11/2021']
-    if date in unavailable_dates:
-        return False
-    return True
+    # Try to find date ranges like 'from 10th to 15th November'
+    date_range_pattern = r'from (.+?) to (.+?)($|\s)'
+    match = re.search(date_range_pattern, user_input)
+    if match:
+        start_date_str = match.group(1)
+        end_date_str = match.group(2)
+        departure_date = dateparser.parse(start_date_str)
+        return_date = dateparser.parse(end_date_str)
+    else:
+        # Try to find individual dates
+        dates = []
+        words = user_input.split()
+        for word in words:
+            parsed_date = dateparser.parse(word, settings={'PREFER_DATES_FROM': 'future'})
+            if parsed_date:
+                dates.append(parsed_date)
+        if dates:
+            departure_date = dates[0]
+            return_date = dates[1] if len(dates) > 1 else None
+        else:
+            # Check for 'tomorrow' or 'today'
+            if 'tomorrow' in user_input:
+                departure_date = datetime.now() + timedelta(days=1)
+                return_date = None
+            elif 'today' in user_input:
+                departure_date = datetime.now()
+                return_date = None
+            else:
+                departure_date = None
+                return_date = None
+
+    if departure_date:
+        departure_date_str = departure_date.strftime('%d/%m/%Y')
+    else:
+        departure_date_str = None
+
+    if return_date:
+        return_date_str = return_date.strftime('%d/%m/%Y')
+    else:
+        return_date_str = None
+
+    return departure_date_str, return_date_str, flexible
+
 
 def extract_new_return_date(user_input):
     """Extract a new return date from user input."""
@@ -84,6 +103,23 @@ def extract_new_return_date(user_input):
             return f"{day}/{current_month}/{current_year}"
     return None
 
+def get_current_time_in_nottingham():
+    """Get the current time in Nottingham."""
+    nottingham_timezone = pytz.timezone('Europe/London')
+    now_nottingham = datetime.now(nottingham_timezone)
+    return now_nottingham
+
+def get_time_of_day(now):
+    """Determine the time of day based on the hour."""
+    hour = now.hour
+    if 5 <= hour < 12:
+        return 'morning'
+    elif 12 <= hour < 17:
+        return 'afternoon'
+    elif 17 <= hour < 22:
+        return 'evening'
+    else:
+        return 'night'
 
 class Chatbot:
     def __init__(self):
@@ -98,6 +134,7 @@ class Chatbot:
             'date_flexible': None,
         }
         self.user_name = None
+        self.tickets = self.load_ticket_dataset()
         self.conversation_history = []
         self.qa_pairs, self.questions, self.qa_vectors, self.qa_vectorizer = load_qa_dataset()
         (
@@ -110,6 +147,34 @@ class Chatbot:
             self.greeting_responses,
             self.farewell_responses
         ) = initialize_intents()
+
+    def load_ticket_dataset(self):
+        """Load the ticket dataset from a CSV file."""
+        tickets = []
+        try:
+            with open('tickets.csv', 'r', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    # Convert numerical fields
+                    row['flight_id'] = int(row['flight_id'])
+                    row['available_seats'] = int(row['available_seats'])
+                    row['price'] = float(row['price'])
+                    tickets.append(row)
+            return tickets
+        except Exception as e:
+            print(f"Error loading ticket dataset: {e}")
+            return []
+        
+    def check_flight_availability(self, departure_city, destination_city, date):
+        """Check flight availability in the dataset."""
+        available_flights = []
+        for ticket in self.tickets:
+            if (ticket['departure_city'].lower() == departure_city.lower() and
+                ticket['destination_city'].lower() == destination_city.lower() and
+                ticket['departure_date'] == date and
+                ticket['available_seats'] > 0):
+                available_flights.append(ticket)
+        return available_flights
 
     def get_welcome_message(self):
         """Return the welcome message."""
@@ -144,13 +209,16 @@ class Chatbot:
 
     
     def handle_transaction(self, user_input):
-        if 'Quit transaction' in user_input.lower():
+        """Handle the flight booking transaction."""
+        # Allow user to quit transaction
+        if 'quit transaction' in user_input.lower():
             self.in_transaction = False
             self.transaction_data = {}
             return "Transaction cancelled. If there's anything else I can assist you with, please let me know."
+
+        # Step 1: Departure and Destination Cities
         if not self.transaction_data['departure_city']:
             # Extract departure and destination cities
-            # Assuming you have a function to extract cities
             departure, destination = extract_cities(user_input)
             if departure and destination:
                 self.transaction_data['departure_city'] = departure
@@ -159,8 +227,8 @@ class Chatbot:
             else:
                 return "I'm sorry, could you please specify the departure and destination cities?"
 
-        elif not self.transaction_data['trip_type']:
-            # Determine trip type
+        # Step 2: Trip Type (Return or Single)
+        if not self.transaction_data['trip_type']:
             if 'return' in user_input.lower():
                 self.transaction_data['trip_type'] = 'return'
             elif 'single' in user_input.lower() or 'one-way' in user_input.lower():
@@ -169,50 +237,144 @@ class Chatbot:
                 return "Please specify if it's a return trip or a single flight."
             return "When were you thinking of going?"
 
-        elif not self.transaction_data['departure_date']:
-            # Extract travel dates
+        # Step 3: Travel Dates
+        if not self.transaction_data['departure_date']:
             departure_date, return_date, date_flexible = extract_travel_dates(user_input)
             if departure_date:
                 self.transaction_data['departure_date'] = departure_date
                 self.transaction_data['return_date'] = return_date if self.transaction_data['trip_type'] == 'return' else None
                 self.transaction_data['date_flexible'] = date_flexible
-                return "Thank you, I will search my database for available tickets. Please wait."
+                # Search for flights and present options
+                return self.search_and_present_flights()
             else:
                 return "Please provide the precise dates of your trip and whether you are flexible with your dates."
 
+        # Step 4: Handle User's Flight Selection
+        if self.transaction_data.get('awaiting_flight_selection'):
+            return self.process_flight_selection(user_input)
+
+        # Step 5: Finalize Booking
+        if 'proceed' in user_input.lower():
+            # Complete booking
+            return self.finalize_booking()
+        elif 'change' in user_input.lower():
+            # Handle changing return date
+            self.transaction_data['return_date'] = None
+            return "Please provide the new return date you'd like."
+        elif 'cancel' in user_input.lower():
+            self.in_transaction = False
+            self.transaction_data = {}
+            return "Booking cancelled. If there's anything else I can assist you with, please let me know."
         else:
-            # Process booking or handle further steps
-            # For simplicity, let's assume we found flights
-            if self.transaction_data['trip_type'] == 'return' and not self.transaction_data.get('flight_options_provided'):
-                # Simulate checking availability
-                available_return = check_flight_availability(self.transaction_data['return_date'])
-                if available_return:
-                    self.transaction_data['flight_options_provided'] = True
-                    return f"I have found flights on your requested dates. Would you like to proceed with booking?(type 'proceed' to continue/ 'change' to change the return date)"
-                else:
-                    return "I'm sorry, there are no return flights available on that date. Would you like to change the return date or book a single flight?"
+            return "I'm not sure how to proceed. Would you like to change the return date or proceed with booking?"
+
+    def search_and_present_flights(self):
+        """Search for flights and present options to the user."""
+        # Check availability for departure flight
+        available_flights = self.check_flight_availability(
+            self.transaction_data['departure_city'],
+            self.transaction_data['destination_city'],
+            self.transaction_data['departure_date']
+        )
+        self.transaction_data['available_flights'] = available_flights
+
+        # Check availability for return flight if it's a return trip
+        if self.transaction_data['trip_type'] == 'return':
+            return_flights = self.check_flight_availability(
+                self.transaction_data['destination_city'],
+                self.transaction_data['departure_city'],
+                self.transaction_data['return_date']
+            )
+            self.transaction_data['return_flights'] = return_flights
+        else:
+            self.transaction_data['return_flights'] = []
+
+        # Check if flights are available
+        if available_flights and (self.transaction_data['trip_type'] == 'single' or self.transaction_data['return_flights']):
+            # Present flight options to the user
+            self.transaction_data['awaiting_flight_selection'] = True
+            return self.present_flight_options()
+        else:
+            if self.transaction_data['trip_type'] == 'return':
+                return "I'm sorry, there are no return flights available on that date. Would you like to change the return date or book a single flight?"
             else:
-                # Handle user's decision
-                if 'change' in user_input.lower() and 'date' in user_input.lower():
-                    new_return_date = extract_new_return_date(user_input)
-                    if new_return_date:
-                        self.transaction_data['return_date'] = new_return_date
-                        # Re-check availability
-                        return "Let me check the availability for the new return date. Please wait."
-                    else:
-                        return "Please specify the new return date you'd like."
-                elif 'proceed' in user_input.lower():
-                    # Complete booking
-                    self.in_transaction = False
-                    self.transaction_data = {}
-                    return "Your booking is confirmed. Thank you for choosing Skynet Travel Agency!"
-                elif 'quit' in user_input.lower():
-                    self.in_transaction = False
-                    self.transaction_data = {}
-                    return "Transaction cancelled. If there's anything else I can assist you with, please let me know."
+                return "I'm sorry, there are no flights available on that date. Would you like to change the date or cancel the booking?"
+
+    def present_flight_options(self):
+        """Present available flight options to the user."""
+        message = "Here are the available flights:\n"
+
+        # List departure flights
+        message += "\nDeparture flights:\n"
+        for idx, flight in enumerate(self.transaction_data['available_flights'], start=1):
+            message += f"{idx}. Flight {flight['flight_id']} from {flight['departure_city']} to {flight['destination_city']} on {flight['departure_date']} at ${flight['price']}\n"
+
+        # List return flights if applicable
+        if self.transaction_data['trip_type'] == 'return':
+            message += "\nReturn flights:\n"
+            for idx, flight in enumerate(self.transaction_data['return_flights'], start=1):
+                message += f"{idx}. Flight {flight['flight_id']} from {flight['departure_city']} to {flight['destination_city']} on {flight['departure_date']} at ${flight['price']}\n"
+
+        message += "\nPlease select your departure flight by entering the number."
+        return message
+
+    def process_flight_selection(self, user_input):
+        """Process the user's flight selection."""
+        if 'departure_flight_selected' not in self.transaction_data:
+            # Process departure flight selection
+            try:
+                selection = int(user_input.strip())
+                selected_flight = self.transaction_data['available_flights'][selection - 1]
+                self.transaction_data['selected_departure_flight'] = selected_flight
+                self.transaction_data['departure_flight_selected'] = True
+
+                if self.transaction_data['trip_type'] == 'return':
+                    return "Please select your return flight by entering the number."
                 else:
-                    return "I'm not sure how to proceed. Would you like to change the return date or proceed with booking?"
-                
+                    return "Would you like to proceed with booking? (type 'proceed' to continue or 'cancel' to cancel the booking)"
+            except (ValueError, IndexError):
+                return "Invalid selection. Please enter the number corresponding to your chosen departure flight."
+        elif self.transaction_data['trip_type'] == 'return' and 'return_flight_selected' not in self.transaction_data:
+            # Process return flight selection
+            try:
+                selection = int(user_input.strip())
+                selected_flight = self.transaction_data['return_flights'][selection - 1]
+                self.transaction_data['selected_return_flight'] = selected_flight
+                self.transaction_data['return_flight_selected'] = True
+                return "Would you like to proceed with booking? (type 'proceed' to continue or 'cancel' to cancel the booking)"
+            except (ValueError, IndexError):
+                return "Invalid selection. Please enter the number corresponding to your chosen return flight."
+        else:
+            # Finalize booking or handle cancellation
+            if 'proceed' in user_input.lower():
+                return self.finalize_booking()
+            elif 'cancel' in user_input.lower():
+                self.in_transaction = False
+                self.transaction_data = {}
+                return "Booking cancelled. If there's anything else I can assist you with, please let me know."
+            else:
+                return "Invalid input. Please type 'proceed' to continue with booking or 'cancel' to cancel the booking."
+
+    def finalize_booking(self):
+        """Finalize the booking and confirm with the user."""
+        departure_flight = self.transaction_data['selected_departure_flight']
+        if self.transaction_data['trip_type'] == 'return':
+            return_flight = self.transaction_data['selected_return_flight']
+            total_price = departure_flight['price'] + return_flight['price']
+        else:
+            return_flight = None
+            total_price = departure_flight['price']
+
+        # Reduce available seats
+        departure_flight['available_seats'] -= 1
+        if return_flight:
+            return_flight['available_seats'] -= 1
+
+        self.in_transaction = False
+        self.transaction_data = {}
+        return f"Your booking is confirmed. The total price is ${total_price:.2f}. Thank you for choosing Skynet Travel Agency!"
+
+
     def extract_cities(user_input):
         # Simple extraction using regular expressions
         # Implement proper NLP parsing for production code
@@ -222,63 +384,6 @@ class Chatbot:
         if match:
             return match.group(1).title(), match.group(2).title()
         return None, None
-
-    def extract_travel_dates(user_input):
-        # Extract dates and flexibility
-        # Implement proper date parsing
-        # For now, let's assume dates are in DD/MM/YYYY format
-        import re
-        date_pattern = r'(\d{2}/\d{2}/\d{4})'
-        dates = re.findall(date_pattern, user_input)
-        flexible = 'flexible' in user_input.lower()
-        if dates:
-            departure_date = dates[0]
-            return_date = dates[1] if len(dates) > 1 else None
-            return departure_date, return_date, flexible
-        return None, None, flexible
-
-    def extract_new_return_date(user_input):
-        # Extract new return date
-        import re
-        date_pattern = r'(\d{2}/\d{2}/\d{4})'
-        match = re.search(date_pattern, user_input)
-        if match:
-            return match.group(1)
-        else:
-            # Check for day specification like '20th'
-            day_pattern = r'(\d{1,2})(?:st|nd|rd|th)?'
-            match = re.search(day_pattern, user_input)
-            if match:
-                day = match.group(1)
-                # You would need more context to construct full date
-                # For simplicity, assume same month and year
-                return f"{day}/11/2021"
-        return None
-    
-    def get_current_time_in_nottingham(self):
-        """Get the current time in Nottingham."""
-        nottingham_timezone = pytz.timezone('Europe/London')
-        now_nottingham = datetime.now(nottingham_timezone)
-        return now_nottingham
-
-    def get_time_of_day(self, now):
-        """Determine the time of day based on the hour."""
-        hour = now.hour
-        if 5 <= hour < 12:
-            return 'morning'
-        elif 12 <= hour < 17:
-            return 'afternoon'
-        elif 17 <= hour < 22:
-            return 'evening'
-        else:
-            return 'night'
-
-    def check_flight_availability(date):
-        # Simulate checking flight availability
-        # In production, this would query a database or API
-        unavailable_dates = ['19/11/2021']
-        return date not in unavailable_dates
-
 
 
     def handle_user_input(self, user_input):
@@ -307,7 +412,7 @@ class Chatbot:
                     'date_flexible': None,
                     'flight_options_provided': False,
                 }
-                return "Hello, welcome to the Skynet Travel Agency. How may I assist you?"
+                return "Hello, welcome to the Skynet Travel Agency. From where to where would you like to fly?"
 
             # Proceed with intent recognition
             intent, score = get_intent(
