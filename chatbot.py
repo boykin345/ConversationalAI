@@ -454,7 +454,7 @@ class Chatbot:
                     'date_flexible': None,
                     'flight_options_provided': False,
                 }
-                return "Welcome to Skynet Travel Agency! How can I assist you today?\n(write city to city to book a flight(if city's name is more than one word, please use '-' to separate the words.))"
+                return "Welcome to Skynet Travel Agency! How can I assist you today?\n(write city to city to book a flight(if city's name is more than one word, please use '-' to separate the words.))\nTo quit write 'quit transaction'"
 
             intent, score = get_intent(
                 user_input,
