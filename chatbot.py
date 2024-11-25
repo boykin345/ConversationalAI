@@ -19,21 +19,37 @@ from datetime import datetime
 
 def extract_cities(user_input):
     """Extract departure and destination cities from user input."""
-    # Pattern to match "from City1 to City2"
-    pattern = r'from\s+([A-Za-z\s]+)\s+to\s+([A-Za-z\s]+)'
-    match = re.search(pattern, user_input.lower())
-    if match:
-        departure = match.group(1).strip().title()
-        destination = match.group(2).strip().title()
-        return departure, destination
-    else:
-        # Try alternative pattern "to City2 from City1"
-        pattern = r'to\s+([A-Za-z\s]+)\s+from\s+([A-Za-z\s]+)'
-        match = re.search(pattern, user_input.lower())
+    user_input = user_input.lower()
+    patterns = [
+        # Pattern 1: from City1 to City2
+        r'from\s+([A-Za-z\s\-]+?)\s+to\s+([A-Za-z\s\-]+)',
+        # Pattern 2: to City2 from City1
+        r'to\s+([A-Za-z\s\-]+?)\s+from\s+([A-Za-z\s\-]+)',
+        # Pattern 3: City1 - City2
+        r'([A-Za-z\s\-]+?)\s*-\s*([A-Za-z\s\-]+)',
+        # Pattern 4: City1 to City2
+        r'([A-Za-z\s\-]+?)\s+to\s+([A-Za-z\s\-]+)',
+        # Pattern 5: from City
+        r'from\s+([A-Za-z\s\-]+)',
+        # Pattern 6: to City
+        r'to\s+([A-Za-z\s\-]+)',
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, user_input)
         if match:
-            departure = match.group(2).strip().title()
-            destination = match.group(1).strip().title()
-            return departure, destination
+            groups = match.groups()
+            if len(groups) == 2:
+                departure = groups[0].strip().title()
+                destination = groups[1].strip().title()
+                return departure, destination
+            elif len(groups) == 1:
+                if 'from' in pattern:
+                    departure = groups[0].strip().title()
+                    return departure, None
+                elif 'to' in pattern:
+                    destination = groups[0].strip().title()
+                    return None, destination
     return None, None
 
 def extract_travel_dates(user_input):
@@ -217,15 +233,21 @@ class Chatbot:
             return "Transaction cancelled. If there's anything else I can assist you with, please let me know."
 
         # Step 1: Departure and Destination Cities
-        if not self.transaction_data['departure_city']:
+        if not self.transaction_data.get('departure_city') or not self.transaction_data.get('destination_city'):
             # Extract departure and destination cities
             departure, destination = extract_cities(user_input)
             if departure and destination:
                 self.transaction_data['departure_city'] = departure
                 self.transaction_data['destination_city'] = destination
                 return "Would that be a return trip or a single flight?"
+            elif departure and not destination:
+                self.transaction_data['departure_city'] = departure
+                return "Where would you like to fly to?"
+            elif not departure and destination:
+                self.transaction_data['destination_city'] = destination
+                return "Where would you be flying from?"
             else:
-                return "I'm sorry, could you please specify the departure and destination cities?"
+                return "I didn't catch that. Could you specify the departure and destination cities again?(If citiy's name is more than one word, please use '-' to separate the words.)"
 
         # Step 2: Trip Type (Return or Single)
         if not self.transaction_data['trip_type']:
@@ -388,6 +410,8 @@ class Chatbot:
 
     def handle_user_input(self, user_input):
         """Process user input and generate response."""
+        user_input_lower = user_input.lower()
+
         if not self.user_name:
             extracted_name = extract_name(user_input)
             if extracted_name:
@@ -400,8 +424,26 @@ class Chatbot:
             # Handle transaction flow
             return self.handle_transaction(user_input)
         else:
-            # Check for transaction initiation intent only if not already in a transaction
-            if 'book a flight' in user_input.lower() or 'flight from' in user_input.lower():
+            booking_patterns = [
+            r'\bbook (?:a )?(?:flight|ticket)\b',
+            r'\bneed (?:a )?(?:flight|ticket)\b',
+            r'\bget (?:me )?(?:a )?(?:flight|ticket)\b',
+            r'\bfind (?:me )?(?:a )?(?:flight|ticket)\b',
+            r'\blooking for (?:a )?(?:flight|ticket)\b',
+            r'\bi want to (?:fly|travel)(?: to| from)?\b',
+            r'\bi want (?:a )?(?:flight|ticket)\b',
+            r'\b(?:flight|ticket) from\b',
+            r'\b(?:flight|ticket) to\b',
+            r'\bfly (?:to|from)\b',
+            r'\btravel (?:to|from)\b',
+            r'\bneed to go to\b',
+        ]
+            booking_intent_detected = False
+            for pattern in booking_patterns:
+                if re.search(pattern, user_input_lower):
+                    booking_intent_detected = True
+                    break
+            if booking_intent_detected:
                 self.in_transaction = True
                 self.transaction_data = {
                     'departure_city': None,
@@ -412,9 +454,8 @@ class Chatbot:
                     'date_flexible': None,
                     'flight_options_provided': False,
                 }
-                return "Hello, welcome to the Skynet Travel Agency. From where to where would you like to fly?"
+                return "Welcome to Skynet Travel Agency! How can I assist you today?\n(write city to city to book a flight(if city's name is more than one word, please use '-' to separate the words.))"
 
-            # Proceed with intent recognition
             intent, score = get_intent(
                 user_input,
                 self.intent_vectorizer,
