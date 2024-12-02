@@ -1,44 +1,44 @@
 flight_id,departure_city,destination_city,departure_date,return_date,available_seats,price
-1,London,Paris,10/11/2024,,50,150
-2,Paris,London,19/11/2024,,0,150
-3,Paris,London,20/11/2024,,30,150
-4,London,Chicago,15/11/2024,,20,500
-5,Chicago,London,22/11/2024,,15,500
-6,London,New York,18/11/2024,,25,450
-7,New York,London,25/11/2024,,10,450
-8,London,Tokyo,20/11/2024,,5,800
-9,Tokyo,London,30/11/2024,,5,800
-10,Paris,Rome,12/11/2024,,40,120
-11,Rome,Paris,19/11/2024,,35,120
-12,Berlin,Madrid,15/11/2024,,30,200
-13,Madrid,Berlin,22/11/2024,,30,200
-14,London,Sydney,01/12/2024,,2,1000
-15,Sydney,London,15/12/2024,,2,1000
-16,Chicago,Los Angeles,18/11/2024,,50,220
-17,Los Angeles,Chicago,25/11/2024,,45,220
-18,New York,Miami,20/11/2024,,60,180
-19,Miami,New York,27/11/2024,,60,180
-20,London,Dubai,22/11/2024,,10,600
-21,Dubai,London,29/11/2024,,10,600
-22,Paris,New York,15/11/2024,,20,550
-23,New York,Paris,22/11/2024,,20,550
-24,Rome,Berlin,18/11/2024,,25,150
-25,Berlin,Rome,25/11/2024,,25,150
-26,Madrid,London,20/11/2024,,30,250
-27,London,Madrid,27/11/2024,,30,250
-28,London,Barcelona,15/11/2024,,40,180
-29,Barcelona,London,22/11/2024,,40,180
-30,London,Lisbon,18/11/2024,,35,170
-31,Lisbon,London,25/11/2024,,35,170
-32,Chicago,Atlanta,20/11/2024,,50,200
-33,Atlanta,Chicago,27/11/2024,,50,200
-34,New York,San Francisco,22/11/2024,,20,400
-35,San Francisco,New York,29/11/2024,,20,400
-36,Paris,Amsterdam,17/11/2024,,45,130
-37,Amsterdam,Paris,24/11/2024,,45,130
-38,London,Dublin,19/11/2024,,50,110
-39,Dublin,London,26/11/2024,,50,110
-40,Tokyo,Sydney,05/12/2024,,15,900
-41,Sydney,Tokyo,15/12/2024,,15,900
-42,Nottingham,Paris,20/11/2024,,50,150
-43,Paris,Nottingham,25/11/2024,,50,150
+1,London,Paris,10/11/2024,17/11/2024,50,150
+2,Paris,London,19/11/2024,26/11/2024,0,150
+3,Paris,London,20/11/2024,27/11/2024,30,150
+4,London,Chicago,15/11/2024,22/11/2024,20,500
+5,Chicago,London,22/11/2024,29/11/2024,15,500
+6,London,New York,18/11/2024,25/11/2024,25,450
+7,New York,London,25/11/2024,02/12/2024,10,450
+8,London,Tokyo,20/11/2024,27/11/2024,5,800
+9,Tokyo,London,30/11/2024,07/12/2024,5,800
+10,Paris,Rome,12/11/2024,19/11/2024,40,120
+11,Rome,Paris,19/11/2024,26/11/2024,35,120
+12,Berlin,Madrid,15/11/2024,22/11/2024,30,200
+13,Madrid,Berlin,22/11/2024,29/11/2024,30,200
+14,London,Sydney,01/12/2024,08/12/2024,2,1000
+15,Sydney,London,15/12/2024,22/12/2024,2,1000
+16,Chicago,Los Angeles,18/11/2024,25/11/2024,50,220
+17,Los Angeles,Chicago,25/11/2024,02/12/2024,45,220
+18,New York,Miami,20/11/2024,27/11/2024,60,180
+19,Miami,New York,27/11/2024,04/12/2024,60,180
+20,London,Dubai,22/11/2024,29/11/2024,10,600
+21,Dubai,London,29/11/2024,06/12/2024,10,600
+22,Paris,New York,15/11/2024,22/11/2024,20,550
+23,New York,Paris,22/11/2024,29/11/2024,20,550
+24,Rome,Berlin,18/11/2024,25/11/2024,25,150
+25,Berlin,Rome,25/11/2024,02/12/2024,25,150
+26,Madrid,London,20/11/2024,27/11/2024,30,250
+27,London,Madrid,27/11/2024,04/12/2024,30,250
+28,London,Barcelona,15/11/2024,22/11/2024,40,180
+29,Barcelona,London,22/11/2024,29/11/2024,40,180
+30,London,Lisbon,18/11/2024,25/11/2024,35,170
+31,Lisbon,Atlanta,25/11/2024,02/12/2024,35,170
+32,Chicago,Chicago,20/11/2024,27/11/2024,50,200
+33,Atlanta,San Francisco,27/11/2024,04/12/2024,50,200
+34,New York,New York,22/11/2024,29/11/2024,20,400
+35,San Francisco,Amsterdam,29/11/2024,06/12/2024,20,400
+36,Paris,Paris,17/11/2024,24/11/2024,45,130
+37,Amsterdam,Dublin,24/11/2024,01/12/2024,45,130
+38,London,Moscow,19/11/2024,26/11/2024,50,110
+39,Dublin,Sydney,26/11/2024,03/12/2024,50,110
+40,Tokyo,Moscow,05/12/2024,12/12/2024,15,900
+41,Sydney,Paris,15/12/2024,22/12/2024,15,900
+42,Paris,Sydney,22/12/2024,29/12/2024,15,900
+43,Paris,New-York,25/11/2024,02/12/2024,50,150
