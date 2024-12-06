@@ -407,7 +407,7 @@ class Chatbot:
             extracted_name = extract_name(user_input)
             if extracted_name:
                 self.user_name = extracted_name
-                return f"Nice to meet you, {self.user_name}! How can I help you today?"
+                return f"Nice to meet you, {self.user_name}! How can I help you today?(to end the conversation write 'quit' or 'exit')"
             else:
                 return "I didn't quite catch your name. Could you tell me again?"
 
