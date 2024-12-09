@@ -277,7 +277,7 @@ class Chatbot:
             self.in_transaction = False
             self.transaction_data = {}
             return "Booking cancelled."
-        return "Would you like to proceed with the booking?"
+        return "Last step! Would you like to proceed with the booking?"
 
     def search_and_present_flights(self):
         """Search for flights and present options to the user."""
@@ -306,10 +306,24 @@ class Chatbot:
             self.transaction_data['awaiting_flight_selection'] = True
             return self.present_flight_options()
         else:
+            # Reset transaction data
+            self.transaction_data = {
+                'trip_type': None,
+                'departure_city': None,
+                'destination_city': None,
+                'departure_date': None,
+                'return_date': None,
+                'available_flights': None,
+                'return_flights': None,
+                'selected_flight': None,
+                'selected_return_flight': None,
+                'awaiting_flight_selection': False
+            }
+            
             if self.transaction_data['trip_type'] == 'return':
-                return "I'm sorry, there are no return flights available on that date. Would you like to change the return date or book a single flight?"
+                return "I'm sorry, there are no return flights available. Let's start over with your booking. Please tell me your travel plans."
             else:
-                return "I'm sorry, there are no flights available on that date. Would you like to change the date or cancel the booking?"
+                return "I'm sorry, there are no flights available. Let's start over with your booking. Please tell me your travel plans."
 
     def present_flight_options(self):
         """Present available flight options to the user."""
