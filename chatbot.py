@@ -253,8 +253,11 @@ class Chatbot:
                         self.transaction_data['return_date'] = return_date
                     else:
                         return "Please specify your return date."
-                return self.search_and_present_flights()
-            return "Please provide your travel dates and mention if you're flexible."
+                    return self.search_and_present_flights()
+                elif self.transaction_data['trip_type'] == 'single':
+                    return self.search_and_present_flights()
+                
+            return "Please provide a complete travel date (e.g., '15th of December' or 'December 15')"
 
         if self.transaction_data['trip_type'] == 'return' and not self.transaction_data.get('return_date'):
             return_date = extract_single_date(user_input)
@@ -445,7 +448,7 @@ class Chatbot:
                     'date_flexible': None,
                     'flight_options_provided': False,
                 }
-                return "Welcome to Skynet Travel Agency! How can I assist you today?\n(write city to city to book a flight(if city's name is more than one word, please use '-' to separate the words.))\nTo quit write 'quit transaction'"
+                return "Welcome to Skynet Travel Agency! How can I assist you today?\n(write 'city' to 'city' to book a flight(if city's name is more than one word, please use '-' to separate the words.))\nTo quit write 'quit transaction'"
 
             intent, score = get_intent(
                 user_input,
